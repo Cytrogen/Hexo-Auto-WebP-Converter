@@ -2,14 +2,14 @@
 
 中文 | [ENG](README_en.md)
 
-## Description | 介绍
+## 介绍
 
 该脚本会在 `hexo g` 或者 `hexo generate` 运行之后、自动转换图片和视频的格式成 `.webp` 和 `.webm`。
 
 - Hexo生成静态文件之前，修改页面数据中引用的图片和视频的格式
 - Hexo生成静态文件之后，转换实际图片和视频文件的格式
 
-## Usage | 使用
+## 使用
 
 ```
 .
