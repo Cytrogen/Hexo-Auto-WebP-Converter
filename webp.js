@@ -2,23 +2,42 @@ const fs = require('fs');
 const color = require('colors');
 const path = require('path');
 const sharp = require('sharp');
-const ffprobe = require('ffprobe');
-const ffprobeStatic = require('ffprobe-static');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const ffprobe = require('ffprobe');
+const ffprobeStatic = require('ffprobe-static');
+
+
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+
+/**
+ * Try to delete a file
+ * @param filePath
+ */
+function tryDeleteFile(filePath) {
+    try {
+        fs.unlinkSync(filePath);
+    } catch (err) {
+        console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to delete ') + color.magenta(filePath) + ' due to ' + color.yellow(err));
+    }
+}
+
+
+/**
+ * Hexo's filter hook that is triggered before generating a post
+ */
 hexo.extend.filter.register('before_post_render', function(data){
     // Replace img src with .webp
-    const imgRegex = /!\[[^\]]*]\((.*?)\)|<img [^>]*src="(.*?)"[^>]*>/g;
 
     // Find all img tags
+    const imgRegex = /!\[[^\]]*]\((.*?)\)|<img [^>]*src="(.*?)"[^>]*>/g;
     if (data.content.indexOf('<img') !== -1 || data.content.indexOf('![') !== -1) {
         data.content.match(imgRegex).forEach(function(imgTag){
             console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Found: ' + color.magenta(imgTag))
-            const match = imgTag.match(/\((.*?)\)|<img [^>]*src="(.*?)"/);
 
             // Determine whether the imgTag is in Markdown format or HTML format
+            const match = imgTag.match(/\((.*?)\)|<img [^>]*src="(.*?)"/);
             let src;
             if (match[1]) {
                 src = match[1];
@@ -43,25 +62,24 @@ hexo.extend.filter.register('before_post_render', function(data){
     }
 
     // Replace video src with .webm
-    const videoRegex = /<video[^>]*>(.*?)<\/video>/g;
-    if (data.content.match(videoRegex)) {
-        const videoContent = data.content.match(videoRegex);
-        const srcRegex = /src="(.+?)"/;
-
-        videoContent.match(srcRegex).forEach(function(srcTag){
-            const src = srcTag.match(/src="(.*?)"/) ? RegExp.$1 : '';
-            if(!src.endsWith('.webm')) {
-                const newSrc = src.substring(0, src.lastIndexOf('.')) + '.webm';
-                data.content = data.content.replace(src, newSrc);
-                console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Replaced: ' + color.magenta(src) + ' => ' + color.magenta(newSrc));
-            }
+    const sourceRegex = /<source.*?src="(.+?)"\s+type="(.+?)".*?>/g;
+    const matches = data.content.match(sourceRegex);
+    if (matches) {
+        matches.forEach(match => {
+            const newSource = match.replace(/\.?mp4/g, '.webm');
+            console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Replaced: ' + color.magenta(match) + ' => ' + color.magenta(newSource));
         });
     }
 
     return data;
 });
 
+
+/**
+ * Hexo's filter hook that is triggered before Hexo exits
+ */
 hexo.extend.filter.register('before_exit', () => {
+    // Check if the command is hexo g or hexo generate, if not, the script will not be executed
     const args = process.argv;
     if (args[1].includes('hexo') && (args[2] === 'g' || args[2] === 'generate')) {
         const publicDir = hexo.public_dir;
@@ -71,6 +89,10 @@ hexo.extend.filter.register('before_exit', () => {
         const videoExtensions = ['.mp4'];
         const videos = []
 
+        /**
+         * Traverse the directory recursively and find all images and videos
+         * @param dir
+         */
         function traverse(dir) {
             // Read all files in the directory
             const files = fs.readdirSync(dir);
@@ -97,12 +119,13 @@ hexo.extend.filter.register('before_exit', () => {
 
         traverse(publicDir);
 
+        // Convert images to .webp
         images.forEach(async imgPath => {
             const imgDir = path.dirname(imgPath);
             const subDir = imgDir.slice(publicDir.length);
 
             // Only convert images in the post directory (e.g. public/2021/01/01)
-            // If hexo_abbrlink is enabled, the post directory will be public/post
+            // If Hexo_Abbrlink is enabled, the post directory will be public/post
             const regex = /^(\d{4}\\)|^(posts\\)/;
             if (regex.test(subDir)) {
                 const imgName = path.basename(imgPath);
@@ -116,16 +139,15 @@ hexo.extend.filter.register('before_exit', () => {
                     console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(imgPath) + ' due to ' + color.yellow(err));
                 }
 
-                try {
-                    fs.unlinkSync(imgPath);
-                } catch (err) {
-                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to delete ') + color.magenta(imgPath) + ' due to ' + color.yellow(err));
-                }
+                // Delete the original image
+                tryDeleteFile(imgPath);
+
             } else {
                 console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip ') + color.magenta(subDir));
             }
         });
 
+        // Convert videos to .webm
         videos.forEach(async videoPath => {
             const videoDir = path.dirname(videoPath);
             const subDir = videoDir.slice(publicDir.length);
@@ -138,12 +160,13 @@ hexo.extend.filter.register('before_exit', () => {
 
                 const numCPUs = require('os').cpus().length;
 
-                // Get the duration of the video
+                // Get the duration of the video for progress bar
                 let duration;
                 ffprobe(videoPath, { path: ffprobeStatic.path }, function(err, info) {
                     duration = info.streams[0].duration;
                 });
 
+                // Use ffmpeg to convert videos with maximum number of threads
                 ffmpeg(videoPath)
                     .output(newPath)
                     .outputOption('-threads ' + numCPUs)
@@ -151,13 +174,12 @@ hexo.extend.filter.register('before_exit', () => {
                         console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converting: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' with ' + color.blue(numCPUs.toString()) + ' threads');
                     })
                     .on('progress', function(progress) {
-                        // console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow(progress));
-
                         // If progress doesn't have percent, then calculate it by timemark
                         if (progress.percent) {
                             console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Processing: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' ' + color.blue(progress.percent + '%'));
                         } else {
                             const parts = progress.timemark.split(':');
+                            console.log(color.red(parts.toString()))
                             const totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
                             const percent = totalSeconds / duration;
                             console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Processing: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' ' + color.blue(percent + '%'));
@@ -167,12 +189,7 @@ hexo.extend.filter.register('before_exit', () => {
                         console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converted: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath));
 
                         // Delete the original video
-                        try {
-                            fs.unlinkSync(videoPath);
-                            // console.log(color.red('THE VIDEO IS DELETED!'));
-                        } catch (err) {
-                            console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to delete ') + color.magenta(videoPath) + ' due to ' + color.yellow(err));
-                        }
+                        tryDeleteFile(videoPath);
                     })
                     .on('error', function(err) {
                         console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(videoPath) + ' due to ' + color.yellow(err));
