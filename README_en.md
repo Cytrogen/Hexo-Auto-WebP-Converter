@@ -1,5 +1,7 @@
 # Hexo-Auto-WebP-Converter
 
+[中文](README.md) | ENG
+
 ## Description
 
 This script automatically converts the format of images and videos to `.webp` and `.webm` after `hexo g` or `hexo generate` is executed.
