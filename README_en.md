@@ -28,7 +28,7 @@ This script automatically converts the format of images and videos to `.webp` an
 
 ## TODO
 
-- [ ] do not rewrite existing files when converting formats, especially for video conversion
+- [x] do not rewrite existing files when converting formats, especially for video conversion
 - [ ] fix percentage display error when converting a video
 - [ ] solve `EPERM unlink` error (probably locked file)
 - [ ] add environment variables, to define the log printing level for example
