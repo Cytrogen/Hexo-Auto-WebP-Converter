@@ -18,6 +18,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 function tryDeleteFile(filePath) {
     try {
         fs.unlinkSync(filePath);
+        console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Deleted: ' + color.magenta(filePath));
     } catch (err) {
         console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to delete ') + color.magenta(filePath) + ' due to ' + color.yellow(err));
     }
@@ -33,32 +34,37 @@ hexo.extend.filter.register('before_post_render', function(data){
     // Find all img tags
     const imgRegex = /!\[[^\]]*]\((.*?)\)|<img [^>]*src="(.*?)"[^>]*>/g;
     if (data.content.indexOf('<img') !== -1 || data.content.indexOf('![') !== -1) {
-        data.content.match(imgRegex).forEach(function(imgTag){
-            console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Found: ' + color.magenta(imgTag))
+        try {
+            data.content.match(imgRegex).forEach(function(imgTag){
+                console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Found: ' + color.magenta(imgTag))
 
-            // Determine whether the imgTag is in Markdown format or HTML format
-            const match = imgTag.match(/\((.*?)\)|<img [^>]*src="(.*?)"/);
-            let src;
-            if (match[1]) {
-                src = match[1];
-            } else if (match[2]) {
-                src = match[2];
-            } else {
-                console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to match ') + color.magenta(match));
-            }
-
-            try {
-                if(!src.endsWith('.webp')) {
-                    const newSrc = src.substring(0, src.lastIndexOf('.')) + '.webp';
-                    data.content = data.content.replace(src, newSrc);
-                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Replaced: ' + color.magenta(src) + ' => ' + color.magenta(newSrc));
+                // Determine whether the imgTag is in Markdown format or HTML format
+                const match = imgTag.match(/\((.*?)\)|<img [^>]*src="(.*?)"/);
+                let src;
+                if (match[1]) {
+                    src = match[1];
+                } else if (match[2]) {
+                    src = match[2];
                 } else {
-                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip ') + color.magenta(src) + ' the match is the following: ' + color.magenta(imgTag));
+                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to match ') + color.magenta(match));
                 }
-            } catch (err) {
-                console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(src) + ' due to ' + color.yellow(err));
-            }
-        });
+
+                try {
+                    if(!src.endsWith('.webp')) {
+                        const newSrc = src.substring(0, src.lastIndexOf('.')) + '.webp';
+                        data.content = data.content.replace(src, newSrc);
+                        console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Replaced: ' + color.magenta(src) + ' => ' + color.magenta(newSrc));
+                    } else {
+                        console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip ') + color.magenta(src) + ' the match is the following: ' + color.magenta(imgTag));
+                    }
+                } catch (err) {
+                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(src) + ' due to ' + color.yellow(err));
+                }
+            });
+        } catch (TypeError) {
+            console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to match ') + color.magenta(data.title) + ' due to ' + color.yellow('TypeError') + ', this is often caused by image tags in code blocks');
+        }
+
     }
 
     // Replace video src with .webm
@@ -132,12 +138,20 @@ hexo.extend.filter.register('before_exit', () => {
                 const name = imgName.split('.').slice(0, -1).join('.');
                 const newPath = path.join(imgDir, name + '.webp');
 
-                try {
-                    await sharp(imgPath).toFile(newPath);
-                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converted: ' + color.magenta(imgPath) + ' => ' + color.magenta(newPath));
-                } catch (err) {
-                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(imgPath) + ' due to ' + color.yellow(err));
-                }
+                // Check if the converted image already exists
+                // If it does not exist, convert it
+                fs.access(newPath, fs.constants.F_OK, async (err) => {
+                    if (err) {
+                        try {
+                            await sharp(imgPath).toFile(newPath);
+                            console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converted: ' + color.magenta(imgPath) + ' => ' + color.magenta(newPath));
+                        } catch (err) {
+                            console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(imgPath) + ' due to ' + color.yellow(err));
+                        }
+                    } else {
+                        console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip ') + color.magenta(imgPath) + ' the file already exists');
+                    }
+                });
 
                 // Delete the original image
                 tryDeleteFile(imgPath);
@@ -158,43 +172,51 @@ hexo.extend.filter.register('before_exit', () => {
                 const name = videoName.split('.').slice(0, -1).join('.');
                 const newPath = path.join(videoDir, name + '.webm');
 
-                const numCPUs = require('os').cpus().length;
+                // Check if the converted video already exists
+                // If it does not exist, convert it
+                fs.access(newPath, fs.constants.F_OK, async (err) => {
+                    if (err) {
+                        const numCPUs = require('os').cpus().length;
 
-                // Get the duration of the video for progress bar
-                let duration;
-                ffprobe(videoPath, { path: ffprobeStatic.path }, function(err, info) {
-                    duration = info.streams[0].duration;
+                        // Get the duration of the video for progress bar
+                        let duration;
+                        ffprobe(videoPath, {path: ffprobeStatic.path}, function (err, info) {
+                            duration = info.streams[0].duration;
+                        });
+
+                        // Use ffmpeg to convert videos with maximum number of threads
+                        ffmpeg(videoPath)
+                            .output(newPath)
+                            .outputOption('-threads ' + numCPUs)
+                            .on('start', function () {
+                                console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converting: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' with ' + color.blue(numCPUs.toString()) + ' threads');
+                            })
+                            .on('progress', function (progress) {
+                                // If progress doesn't have percent, then calculate it by timemark
+                                if (progress.percent) {
+                                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Processing: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' ' + color.blue(progress.percent + '%'));
+                                } else {
+                                    const parts = progress.timemark.split(':');
+                                    console.log(color.red(parts.toString()))
+                                    const totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                                    const percent = totalSeconds / duration;
+                                    console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Processing: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' ' + color.blue(percent + '%'));
+                                }
+                            })
+                            .on('end', function () {
+                                console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converted: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath));
+
+                                // Delete the original video
+                                tryDeleteFile(videoPath);
+                            })
+                            .on('error', function (err) {
+                                console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(videoPath) + ' due to ' + color.yellow(err));
+                            })
+                            .run();
+                    } else {
+                        console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip deleting ') + color.magenta(videoPath) + ' the file already exists');
+                    }
                 });
-
-                // Use ffmpeg to convert videos with maximum number of threads
-                ffmpeg(videoPath)
-                    .output(newPath)
-                    .outputOption('-threads ' + numCPUs)
-                    .on('start', function() {
-                        console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converting: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' with ' + color.blue(numCPUs.toString()) + ' threads');
-                    })
-                    .on('progress', function(progress) {
-                        // If progress doesn't have percent, then calculate it by timemark
-                        if (progress.percent) {
-                            console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Processing: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' ' + color.blue(progress.percent + '%'));
-                        } else {
-                            const parts = progress.timemark.split(':');
-                            console.log(color.red(parts.toString()))
-                            const totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                            const percent = totalSeconds / duration;
-                            console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Processing: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath) + ' ' + color.blue(percent + '%'));
-                        }
-                    })
-                    .on('end', function() {
-                        console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converted: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath));
-
-                        // Delete the original video
-                        tryDeleteFile(videoPath);
-                    })
-                    .on('error', function(err) {
-                        console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(videoPath) + ' due to ' + color.yellow(err));
-                    })
-                    .run();
             }
         });
     }
