@@ -154,7 +154,7 @@ hexo.extend.filter.register('before_exit', () => {
                 });
 
                 // Delete the original image
-                tryDeleteFile(imgPath);
+                // tryDeleteFile(imgPath);
 
             } else {
                 console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip ') + color.magenta(subDir));
@@ -207,7 +207,7 @@ hexo.extend.filter.register('before_exit', () => {
                                 console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Converted: ' + color.magenta(videoPath) + ' => ' + color.magenta(newPath));
 
                                 // Delete the original video
-                                tryDeleteFile(videoPath);
+                                // tryDeleteFile(videoPath);
                             })
                             .on('error', function (err) {
                                 console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to convert ') + color.magenta(videoPath) + ' due to ' + color.yellow(err));
