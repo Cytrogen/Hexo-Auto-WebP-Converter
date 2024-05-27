@@ -23,14 +23,14 @@ hexo.extend.filter.register('before_post_render', function(data){
     }
 
     // Find all img tags
-    const imgRegex = /!\[[^\]]*]\((.*?)\)|<img [^>]*src="(.*?)"[^>]*>/g;
+    const imgRegex = /(?<!https?:\/\/)\!\[[^\]]*]\((?!https?:\/\/)(.*?)\)|<img [^>]*src="((?!https?:\/\/)(.*?))"[^>]*>/g;
     if (data.content.indexOf('<img') !== -1 || data.content.indexOf('![') !== -1) {
         try {
             data.content.match(imgRegex).forEach(function(imgTag){
                 console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Found: ' + color.magenta(imgTag))
 
                 // Determine whether the imgTag is in Markdown format or HTML format
-                const match = imgTag.match(/\((.*?)\)|<img [^>]*src="(.*?)"/);
+                const match = imgTag.match(/\((.*?)\)|<img [^>]*src="((?!https?:\/\/)(.*?)?)"/);
                 let src;
                 if (match[1]) {
                     src = match[1];
