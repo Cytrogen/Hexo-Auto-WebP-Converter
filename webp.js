@@ -18,6 +18,9 @@ ffmpeg.setFfmpegPath(ffmpegPath);
  */
 hexo.extend.filter.register('before_post_render', function(data){
     // Replace img src with .webp
+    if (data.path.split('/')[0] === 'about') {
+        return data;
+    }
 
     // Find all img tags
     const imgRegex = /!\[[^\]]*]\((.*?)\)|<img [^>]*src="(.*?)"[^>]*>/g;
