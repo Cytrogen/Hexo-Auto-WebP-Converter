@@ -11,18 +11,6 @@ const ffprobeStatic = require('ffprobe-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 
-/**
- * Try to delete a file
- * @param filePath
- */
-function tryDeleteFile(filePath) {
-    try {
-        fs.unlinkSync(filePath);
-        console.log(color.green('Hexo-Auto-Webp-Converter  ') + 'Deleted: ' + color.magenta(filePath));
-    } catch (err) {
-        console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.red('Failed to delete ') + color.magenta(filePath) + ' due to ' + color.yellow(err));
-    }
-}
 
 
 /**
@@ -152,10 +140,6 @@ hexo.extend.filter.register('before_exit', () => {
                         console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip ') + color.magenta(imgPath) + ' the file already exists');
                     }
                 });
-
-                // Delete the original image
-                // tryDeleteFile(imgPath);
-
             } else {
                 console.log(color.green('Hexo-Auto-Webp-Converter  ') + color.yellow('Skip ') + color.magenta(subDir));
             }
