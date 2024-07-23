@@ -26,7 +26,11 @@ This script automatically converts the format of images to `.webp` after `hexo g
 ```
 
 1. 将该仓库的 `webp.js` 存放在 `scripts` 目录下 | place `webp.js` from this repo under `scripts` directory
-2. 使用 `hexo g` 或者 `hexo generate` | run `hexo g` or `hexo generate`
+2. 在博客项目根目录下安装该脚本所需的依赖：
+   ```
+   npm install --save fs colors path sharp
+   ```
+4. 使用 `hexo g` 或者 `hexo generate` | run `hexo g` or `hexo generate`
 
 ## TODO
 
